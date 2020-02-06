@@ -12,21 +12,20 @@ struct ScratchHeap(*mut u8);
 
 static mut SCRATCH_HEAP: ScratchHeap = ScratchHeap(core::ptr::null_mut());
 static mut OFFSET: Mutex<usize> = Mutex::new(0);
+static mut INIT_HEAP: Mutex<()> = Mutex::new(());
 
 /// Initialize an unset pointer
 pub unsafe fn init_ptr(start: *mut u8, size: usize) {
-    if SCRATCH_HEAP.0 != core::ptr::null_mut() {
-        return;
-    }
-
+    let _init = INIT_HEAP.lock();
     SCRATCH_LEN_BYTES = size;
     SCRATCH_HEAP.0 = start;
 }
 
 pub(crate) unsafe fn alloc_pages(pages: Pages) -> Result<NonNull<u8>, AllocErr> {
-    if SCRATCH_HEAP.0.is_null() {
+    /*if SCRATCH_HEAP.0.is_null() {
         return Err(AllocErr);
-    }
+    }*/
+
     let bytes: Bytes = pages.into();
     let mut offset = OFFSET.lock();
     let end = bytes.0.checked_add(*offset).ok_or(AllocErr)?;
