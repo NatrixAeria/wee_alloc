@@ -197,6 +197,7 @@ cfg_if! {
     if #[cfg(feature = "static_ptr_backend")] {
         mod imp_static_ptr;
         use imp_static_ptr as imp;
+        pub use imp::init_ptr;
     } else if #[cfg(feature = "static_array_backend")] {
         mod imp_static_array;
         use imp_static_array as imp;
