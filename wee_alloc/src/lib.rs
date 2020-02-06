@@ -183,7 +183,11 @@ extern crate alloc;
 
 #[cfg(feature = "use_std_for_test_debugging")]
 extern crate core;
+
 #[cfg(feature = "static_array_backend")]
+extern crate spin;
+
+#[cfg(feature = "static_ptr_backend")]
 extern crate spin;
 
 extern crate memory_units;
@@ -192,7 +196,10 @@ extern crate memory_units;
 mod extra_assert;
 
 cfg_if! {
-    if #[cfg(feature = "static_array_backend")] {
+    if #[cfg(feature = "static_ptr_backend")] {
+        mod imp_static_ptr;
+        use imp_static_ptr as imp;
+    } else if #[cfg(feature = "static_array_backend")] {
         mod imp_static_array;
         use imp_static_array as imp;
     } else if #[cfg(target_arch = "wasm32")] {
