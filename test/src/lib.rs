@@ -9,7 +9,7 @@ extern crate rand;
 extern crate wee_alloc;
 
 use quickcheck::{Arbitrary, Gen};
-use std::alloc::{Alloc, Layout};
+use std::alloc::{AllocRef, Layout};
 use std::f64;
 use std::fs;
 use std::io::Read;
@@ -266,7 +266,7 @@ impl Operations {
         handle3.join().expect("Thread 3 Failed");
     }
 
-    pub fn run_with_allocator<A: Alloc>(&self, mut a: A) {
+    pub fn run_with_allocator<A: AllocRef>(&self, mut a: A) {
         let mut allocs = vec![];
         for op in self.0.iter().cloned() {
             match op {

@@ -218,7 +218,7 @@ mod size_classes;
 
 cfg_if! {
     if #[cfg(feature = "nightly")] {
-        use core::alloc::{Alloc, AllocErr};
+        use core::alloc::{AllocRef, AllocErr};
     } else {
         pub(crate) struct AllocErr;
     }
@@ -1142,7 +1142,7 @@ impl<'a> WeeAlloc<'a> {
 }
 
 #[cfg(feature = "nightly")]
-unsafe impl<'a, 'b> Alloc for &'b WeeAlloc<'a>
+unsafe impl<'a, 'b> AllocRef for &'b WeeAlloc<'a>
 where
     'a: 'b,
 {
