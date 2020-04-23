@@ -40,6 +40,7 @@ extern crate wee_alloc;
 
 // Use `wee_alloc` as the global allocator.
 #[global_allocator]
+#[cfg(feature="nightly")]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 # fn main() {}
 ```
@@ -168,10 +169,11 @@ See
 for hacking!
 
  */
-
+#![feature(allocator_api)]
 #![deny(missing_docs)]
 #![cfg_attr(not(feature = "use_std_for_test_debugging"), no_std)]
-#![cfg_attr(feature = "nightly", feature(allocator_api, core_intrinsics))]
+#![cfg_attr(feature = "nightly", feature(core_intrinsics))]
+
 
 #[macro_use]
 extern crate cfg_if;
@@ -225,7 +227,7 @@ cfg_if! {
 }
 
 use const_init::ConstInit;
-use core::alloc::{GlobalAlloc, Layout};
+use core::alloc::{GlobalAlloc, Layout, AllocInit, MemoryBlock};
 use core::cell::Cell;
 use core::cmp;
 use core::marker::Sync;
@@ -1027,8 +1029,9 @@ impl<'a> WeeAlloc<'a> {
         })
     }
 
-    unsafe fn alloc_impl(&self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        let size = Bytes(layout.size());
+    unsafe fn alloc_impl(&self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+        let s = layout.size();
+        let size = Bytes(s);
         let align = if layout.align() == 0 {
             Bytes(1)
         } else {
@@ -1039,15 +1042,24 @@ impl<'a> WeeAlloc<'a> {
             // Ensure that our made up pointer is properly aligned by using the
             // alignment as the pointer.
             extra_assert!(align.0 > 0);
-            return Ok(NonNull::new_unchecked(align.0 as *mut u8));
+            return Ok(
+                MemoryBlock { ptr: NonNull::new_unchecked(align.0 as *mut u8), size: 0 }
+            )
+        }
+
+        // FIXME currently not supported
+        if init == AllocInit::Zeroed {
+            return Err(AllocErr);
         }
 
         let word_size: Words = checked_round_up_to(size).ok_or(AllocErr)?;
 
-        self.with_free_list_and_policy_for_size(word_size, align, |head, policy| {
+        let ptr = self.with_free_list_and_policy_for_size(word_size, align, |head, policy| {
             assert_is_valid_free_list(head.get(), policy);
             alloc_with_refill(word_size, align, head, policy)
-        })
+        })?;
+
+        Ok(MemoryBlock { ptr, size: s })
     }
 
     unsafe fn dealloc_impl(&self, ptr: NonNull<u8>, layout: Layout) {
@@ -1146,8 +1158,8 @@ unsafe impl<'a, 'b> AllocRef for &'b WeeAlloc<'a>
 where
     'a: 'b,
 {
-    unsafe fn alloc(&mut self, layout: Layout) -> Result<NonNull<u8>, AllocErr> {
-        self.alloc_impl(layout)
+    fn alloc(&mut self, layout: Layout, init: AllocInit) -> Result<MemoryBlock, AllocErr> {
+        unsafe { self.alloc_impl(layout, init) }
     }
 
     unsafe fn dealloc(&mut self, ptr: NonNull<u8>, layout: Layout) {
@@ -1155,10 +1167,11 @@ where
     }
 }
 
+#[cfg(feature = "nightly")]
 unsafe impl GlobalAlloc for WeeAlloc<'static> {
     unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        match self.alloc_impl(layout) {
-            Ok(ptr) => ptr.as_ptr(),
+        match self.alloc_impl(layout, AllocInit::Uninitialized) {
+            Ok(ptr) => ptr.ptr.as_ptr(),
             Err(AllocErr) => ptr::null_mut(),
         }
     }

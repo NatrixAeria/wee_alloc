@@ -9,7 +9,7 @@ extern crate rand;
 extern crate wee_alloc;
 
 use quickcheck::{Arbitrary, Gen};
-use std::alloc::{AllocRef, Layout};
+use std::alloc::{AllocRef, Layout, AllocInit, ReallocPlacement};
 use std::f64;
 use std::fs;
 use std::io::Read;
@@ -272,7 +272,7 @@ impl Operations {
             match op {
                 Alloc(n) => {
                     let layout = Layout::from_size_align(n, mem::size_of::<usize>()).unwrap();
-                    allocs.push(match unsafe { a.alloc(layout.clone()) } {
+                    allocs.push(match unsafe { a.alloc(layout.clone(), AllocInit::Uninitialized) } {
                         Ok(ptr) => Some((ptr, layout)),
                         Err(_) => None,
                     });
@@ -281,7 +281,7 @@ impl Operations {
                     if let Some(entry) = allocs.get_mut(idx) {
                         if let Some((ptr, layout)) = entry.take() {
                             unsafe {
-                                a.dealloc(ptr, layout);
+                                a.dealloc(ptr.ptr, layout);
                             }
                         }
                     }
@@ -376,7 +376,7 @@ quickcheck! {
 
         let mut w = &wee_alloc::WeeAlloc::INIT;
         let layout = Layout::from_size_align(size, align).unwrap();
-        let _ = unsafe { w.alloc(layout) };
+        let _ = unsafe { w.alloc(layout, AllocInit::Uninitialized) };
     }
 }
 
@@ -481,24 +481,24 @@ fn smoke() {
     unsafe {
         let layout = Layout::new::<u8>();
         let ptr = a
-            .alloc(layout.clone())
+            .alloc(layout.clone(), AllocInit::Uninitialized)
             .expect("Should be able to alloc a fresh Layout clone");
         {
-            let ptr = ptr.as_ptr() as *mut u8;
+            let ptr = ptr.ptr.as_ptr() as *mut u8;
             *ptr = 9;
             assert_eq!(*ptr, 9);
         }
-        a.dealloc(ptr, layout.clone());
+        a.dealloc(ptr.ptr, layout.clone());
 
         let ptr = a
-            .alloc(layout.clone())
+            .alloc(layout.clone(), AllocInit::Uninitialized)
             .expect("Should be able to alloc from a second clone");
         {
-            let ptr = ptr.as_ptr() as *mut u8;
+            let ptr = ptr.ptr.as_ptr() as *mut u8;
             *ptr = 10;
             assert_eq!(*ptr, 10);
         }
-        a.dealloc(ptr, layout.clone());
+        a.dealloc(ptr.ptr, layout.clone());
     }
 }
 
@@ -508,7 +508,7 @@ fn cannot_alloc_max_usize() {
     unsafe {
         let layout = Layout::from_size_align(std::usize::MAX, 1)
             .expect("should be able to create a `Layout` with size = std::usize::MAX");
-        let result = a.alloc(layout);
+        let result = a.alloc(layout, AllocInit::Uninitialized);
         assert!(result.is_err());
     }
 }
@@ -551,11 +551,11 @@ fn stress() {
                 for i in 0..cmp::min(old.size(), new.size()) {
                     tmp.push(*(ptr.as_ptr() as *mut u8).offset(i as isize));
                 }
-                let ptr = a.realloc(ptr, old, new.size()).unwrap();
+                let ptr = a.grow(ptr, old, new.size(), ReallocPlacement::MayMove, AllocInit::Uninitialized).unwrap();
                 for (i, byte) in tmp.iter().enumerate() {
-                    assert_eq!(*byte, *(ptr.as_ptr() as *mut u8).offset(i as isize));
+                    assert_eq!(*byte, *(ptr.ptr.as_ptr() as *mut u8).offset(i as isize));
                 }
-                ptrs.push((ptr, new));
+                ptrs.push((ptr.ptr, new));
             }
 
             let size = if rng.gen() {
@@ -569,17 +569,17 @@ fn stress() {
             let layout = Layout::from_size_align(size, align).unwrap();
 
             let ptr = if zero {
-                a.alloc_zeroed(layout.clone()).unwrap()
+                a.alloc(layout.clone(), AllocInit::Zeroed).unwrap()
             } else {
-                a.alloc(layout.clone()).unwrap()
+                a.alloc(layout.clone(), AllocInit::Uninitialized).unwrap()
             };
             for i in 0..layout.size() {
                 if zero {
-                    assert_eq!(*(ptr.as_ptr() as *mut u8).offset(i as isize), 0);
+                    assert_eq!(*(ptr.ptr.as_ptr() as *mut u8).offset(i as isize), 0);
                 }
-                *(ptr.as_ptr() as *mut u8).offset(i as isize) = 0xce;
+                *(ptr.ptr.as_ptr() as *mut u8).offset(i as isize) = 0xce;
             }
-            ptrs.push((ptr, layout));
+            ptrs.push((ptr.ptr, layout));
         }
     }
 }

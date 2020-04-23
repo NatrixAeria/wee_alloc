@@ -17,7 +17,7 @@ version = "0.4.5"
 travis-ci = { repository = "rustwasm/wee_alloc" }
 
 [features]
-default = ["size_classes"]
+default = ["size_classes", "nightly"]
 nightly = []
 
 # Enable extra, expensive integrity allocations.
