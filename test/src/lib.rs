@@ -9,7 +9,7 @@ extern crate rand;
 extern crate wee_alloc;
 
 use quickcheck::{Arbitrary, Gen};
-use std::alloc::{AllocRef, Layout, AllocInit, ReallocPlacement};
+use std::alloc::{AllocInit, AllocRef, Layout, ReallocPlacement};
 use std::f64;
 use std::fs;
 use std::io::Read;
@@ -272,10 +272,12 @@ impl Operations {
             match op {
                 Alloc(n) => {
                     let layout = Layout::from_size_align(n, mem::size_of::<usize>()).unwrap();
-                    allocs.push(match unsafe { a.alloc(layout.clone(), AllocInit::Uninitialized) } {
-                        Ok(ptr) => Some((ptr, layout)),
-                        Err(_) => None,
-                    });
+                    allocs.push(
+                        match unsafe { a.alloc(layout.clone(), AllocInit::Uninitialized) } {
+                            Ok(ptr) => Some((ptr, layout)),
+                            Err(_) => None,
+                        },
+                    );
                 }
                 Free(idx) => {
                     if let Some(entry) = allocs.get_mut(idx) {
@@ -516,7 +518,11 @@ fn cannot_alloc_max_usize() {
 // This takes too long with our extra assertion checks enabled,
 // and the fixed-sized static array backend is too small.
 #[test]
-#[cfg(not(any(feature = "extra_assertions", feature = "static_array_backend")))]
+#[cfg(not(any(
+    feature = "extra_assertions",
+    feature = "static_array_backend",
+    feature = "static_ptr_backend"
+)))]
 fn stress() {
     use rand::Rng;
     use std::cmp;
@@ -551,7 +557,15 @@ fn stress() {
                 for i in 0..cmp::min(old.size(), new.size()) {
                     tmp.push(*(ptr.as_ptr() as *mut u8).offset(i as isize));
                 }
-                let ptr = a.grow(ptr, old, new.size(), ReallocPlacement::MayMove, AllocInit::Uninitialized).unwrap();
+                let ptr = a
+                    .grow(
+                        ptr,
+                        old,
+                        new.size(),
+                        ReallocPlacement::MayMove,
+                        AllocInit::Uninitialized,
+                    )
+                    .unwrap();
                 for (i, byte) in tmp.iter().enumerate() {
                     assert_eq!(*byte, *(ptr.ptr.as_ptr() as *mut u8).offset(i as isize));
                 }

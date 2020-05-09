@@ -4,13 +4,15 @@ use const_init::ConstInit;
 use core::cell::Cell;
 use core::ptr::NonNull;
 use memory_units::{Bytes, Pages};
-use spin::Mutex;
+extern crate parking_lot;
+use self::parking_lot::Mutex;
 
 static mut SCRATCH_LEN_BYTES: usize = 0;
 
 struct ScratchHeap(*mut u8);
 
 static mut SCRATCH_HEAP: ScratchHeap = ScratchHeap(core::ptr::null_mut());
+
 static mut OFFSET: Mutex<usize> = Mutex::new(0);
 static mut INIT_HEAP: Mutex<()> = Mutex::new(());
 

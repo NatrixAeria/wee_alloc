@@ -174,7 +174,6 @@ for hacking!
 #![cfg_attr(not(feature = "use_std_for_test_debugging"), no_std)]
 #![cfg_attr(feature = "nightly", feature(core_intrinsics))]
 
-
 #[macro_use]
 extern crate cfg_if;
 
@@ -185,9 +184,6 @@ extern crate alloc;
 extern crate core;
 
 #[cfg(feature = "static_array_backend")]
-extern crate spin;
-
-#[cfg(feature = "static_ptr_backend")]
 extern crate spin;
 
 extern crate memory_units;
@@ -235,7 +231,7 @@ cfg_if! {
 }
 
 use const_init::ConstInit;
-use core::alloc::{GlobalAlloc, Layout, AllocInit, MemoryBlock};
+use core::alloc::{AllocInit, GlobalAlloc, Layout, MemoryBlock};
 use core::cell::Cell;
 use core::cmp;
 use core::marker::Sync;
@@ -1050,9 +1046,10 @@ impl<'a> WeeAlloc<'a> {
             // Ensure that our made up pointer is properly aligned by using the
             // alignment as the pointer.
             extra_assert!(align.0 > 0);
-            return Ok(
-                MemoryBlock { ptr: NonNull::new_unchecked(align.0 as *mut u8), size: 0 }
-            )
+            return Ok(MemoryBlock {
+                ptr: NonNull::new_unchecked(align.0 as *mut u8),
+                size: 0,
+            });
         }
 
         // FIXME currently not supported
